@@ -65,6 +65,23 @@ This project uses Poetry for dependency management. To get started:
 
 ## Usage
 
+### Ingest CLI
+
+Process company data from CSV files:
+
+```bash
+# Basic usage
+poetry run python -m thinkbridge.ingest companies.csv
+
+# With custom concurrency and checkpoint
+poetry run python -m thinkbridge.ingest companies.csv --max-concurrent 4 --checkpoint my_checkpoint.json
+
+# Help
+poetry run python -m thinkbridge.ingest --help
+```
+
+### Development Commands
+
 Run tests:
 ```bash
 poetry run pytest
@@ -75,9 +92,19 @@ Format code:
 poetry run black .
 ```
 
+Sort imports:
+```bash
+poetry run isort .
+```
+
 Lint code:
 ```bash
 poetry run flake8 .
+```
+
+Type checking:
+```bash
+poetry run mypy src/
 ```
 
 ## Project Structure
@@ -86,9 +113,14 @@ poetry run flake8 .
 thinkbridge/
 ├── pyproject.toml      # Poetry configuration
 ├── README.md          # This file
+├── companies.csv       # Sample company data
 ├── src/               # Source code
 │   └── thinkbridge/
-│       └── __init__.py
+│       ├── __init__.py
+│       ├── example.py  # Example module
+│       └── ingest.py   # CSV ingestion CLI
 └── tests/             # Test files
-    └── __init__.py
+    ├── __init__.py
+    ├── test_example.py
+    └── test_ingest.py
 ```

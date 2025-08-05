@@ -1,0 +1,24 @@
+{
+  "processed": [
+    "https://test1.com",
+    "https://test2.com",
+    "https://www.construction-company.com",
+    "https://www.healthcare-provider.com",
+    "https://www.financial-services.com",
+    "https://www.retail-store.com"
+  ],
+  "failed": [
+    {
+      "url": "https://www.example.com",
+      "industry": "technology",
+      "error": "Simulated failure for example.com",
+      "timestamp": "2025-08-05T22:56:22.510810"
+    },
+    {
+      "url": "https://www.example.com",
+      "industry": "technology",
+      "error": "Simulated failure for example.com",
+      "timestamp": "2025-08-05T22:57:03.402109"
+    }
+  ]
+}
