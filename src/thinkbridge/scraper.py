@@ -4,11 +4,14 @@ Web scraping functionality for the Sales Factsheet Generation System.
 
 import asyncio
 import logging
+import os
+import ssl
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
+from firecrawl import FirecrawlApp
 
 
 class WebScraper:
@@ -23,7 +26,8 @@ class WebScraper:
             firecrawl_api_key: Firecrawl API key (optional)
             max_concurrent: Maximum concurrent requests
         """
-        self.firecrawl_api_key = firecrawl_api_key
+        # Get API key from environment if not provided
+        self.firecrawl_api_key = firecrawl_api_key or os.getenv("FIRECRAWL_API_KEY")
         self.max_concurrent = max_concurrent
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.logger = logging.getLogger(__name__)
@@ -53,27 +57,115 @@ class WebScraper:
                 return {"url": url, "content": "", "error": str(e), "method": "failed"}
 
     async def _scrape_with_firecrawl(self, url: str) -> Optional[Dict[str, Any]]:
-        """Scrape using Firecrawl API.
+        """Scrape using Firecrawl API with crawling for comprehensive data.
 
         Args:
-            url: URL to scrape
+            url: URL to crawl
 
         Returns:
             Scraped content or None if failed
         """
         try:
-            # This is a placeholder for Firecrawl API integration
-            # In a real implementation, you would use the Firecrawl SDK or API
-            self.logger.info(f"Attempting Firecrawl scrape for {url}")
+            self.logger.info(f"Attempting Firecrawl crawl for {url} with depth=20")
 
-            # Simulate API call
-            await asyncio.sleep(0.1)
+            # Initialize Firecrawl client
+            firecrawl_client = FirecrawlApp(api_key=self.firecrawl_api_key)
 
-            # For now, return None to trigger fallback
-            return None
+            # Use crawl_url to get all pages (more comprehensive)
+            # According to Firecrawl API, use params dictionary
+            crawl_params = {
+                "limit": 50,  # Increase limit to accommodate deeper crawling
+                "maxDepth": 20,  # Crawl to depth of 20 levels
+                "scrapeOptions": {"formats": ["markdown"], "onlyMainContent": True},
+            }
+
+            crawl_result = firecrawl_client.crawl_url(url, params=crawl_params)
+
+            if crawl_result and crawl_result.get("success"):
+                self.logger.info(f"Firecrawl crawl successful for {url}")
+
+                # Extract content from all crawled pages
+                data = crawl_result.get("data", [])
+                if not data:
+                    self.logger.warning(f"Firecrawl crawl returned no data for {url}")
+                    return None
+
+                # Combine content from all pages
+                combined_content = ""
+                homepage_content = ""
+                about_content = ""
+                about_url = None
+
+                for page in data:
+                    page_url = page.get("metadata", {}).get("sourceURL", "")
+                    page_content = page.get("markdown", "")
+
+                    if page_content:
+                        combined_content += (
+                            f"\n\n--- Page: {page_url} ---\n{page_content}"
+                        )
+
+                        # Check if this is the homepage (first page or matches base URL)
+                        if (
+                            not homepage_content
+                            or page_url == url
+                            or page_url == url.rstrip("/")
+                        ):
+                            homepage_content = page_content
+
+                        # Check if this looks like an About page
+                        if any(
+                            keyword in page_url.lower()
+                            for keyword in ["about", "who", "company", "mission"]
+                        ):
+                            about_content = page_content
+                            about_url = page_url
+
+                return {
+                    "url": url,
+                    "homepage_content": homepage_content or combined_content,
+                    "homepage_text": homepage_content or combined_content,
+                    "about_url": about_url,
+                    "about_text": about_content,
+                    "combined_content": combined_content.strip(),
+                    "pages_crawled": len(data),
+                    "method": "firecrawl-crawl",
+                    "status": "success",
+                    "metadata": crawl_result.get("metadata", {}),
+                }
+            else:
+                self.logger.warning(f"Firecrawl crawl failed for {url}")
+                return None
 
         except Exception as e:
-            self.logger.warning(f"Firecrawl API failed for {url}: {e}")
+            self.logger.warning(f"Firecrawl crawl failed for {url}: {e}")
+            # Fallback to single page scrape if crawl fails
+            try:
+                self.logger.info(f"Trying Firecrawl single page scrape for {url}")
+                scrape_params = {"formats": ["markdown"], "onlyMainContent": True}
+                response = firecrawl_client.scrape_url(url, params=scrape_params)
+
+                if response and response.get("success"):
+                    data = response.get("data", {})
+                    content = data.get("markdown", "")
+
+                    if content:
+                        return {
+                            "url": url,
+                            "homepage_content": content,
+                            "homepage_text": content,
+                            "about_url": None,
+                            "about_text": "",
+                            "method": "firecrawl-scrape",
+                            "status": "success",
+                            "metadata": data.get("metadata", {}),
+                        }
+
+            except Exception as fallback_error:
+                self.logger.warning(
+                    f"Firecrawl fallback scrape also failed for {url}: {fallback_error}"
+                )
+
             return None
 
     async def _scrape_with_httpx(self, url: str) -> Dict[str, Any]:
@@ -90,9 +182,17 @@ class WebScraper:
             if not url.startswith(("http://", "https://")):
                 url = f"https://{url}"
 
+            # Create SSL context that's more permissive
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            # Set minimum TLS version to avoid DH key issues
+            ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+
             async with httpx.AsyncClient(
                 timeout=30.0,
                 follow_redirects=True,
+                verify=ssl_context,
                 headers={
                     "User-Agent": (
                         "Mozilla/5.0 (compatible; ThinkbridgeBot/1.0; "

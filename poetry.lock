@@ -364,6 +364,21 @@ testing = ["covdefaults (>=2.3)", "coverage (>=7.6.10)", "diff-cover (>=9.2.1)",
 typing = ["typing-extensions (>=4.12.2) ; python_version < \"3.11\""]
 
 [[package]]
+name = "firecrawl"
+version = "0.0.20"
+description = "Python SDK for Firecrawl API"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "firecrawl-0.0.20-py3-none-any.whl", hash = "sha256:4492e942a3ab965605c8eb6dfadbd72326c773897bfe9c86dc88108a254b403d"},
+    {file = "firecrawl-0.0.20.tar.gz", hash = "sha256:2dc31f1b43d2ccd65c58247cc95f38d9b2d378476511b8f1296fcdbedd7a5cf5"},
+]
+
+[package.dependencies]
+requests = "*"
+
+[[package]]
 name = "flake8"
 version = "7.3.0"
 description = "the modular source code checker: pep8 pyflakes and co"
@@ -1640,4 +1655,4 @@ test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "8102064063f02af9022adf95504d9e9c338e324c20f7b4524d66042e69aad9f8"
+content-hash = "24170fb98ed56eb177a96eec253085de2dcfb7d53d4158ad4562a2e939218bc6"
