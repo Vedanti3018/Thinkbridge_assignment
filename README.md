@@ -80,6 +80,33 @@ poetry run python -m thinkbridge.ingest companies.csv --max-concurrent 4 --check
 poetry run python -m thinkbridge.ingest --help
 ```
 
+The CLI supports:
+- **CSV Validation**: Ensures required columns (`url`, `industry`) are present
+- **URL Validation**: Validates URL format and accessibility
+- **Web Scraping**: Scrapes company websites using httpx and BeautifulSoup
+- **Content Cleaning**: Uses trafilatura to extract and clean HTML content
+- **Text Chunking**: Splits content into manageable chunks for processing
+- **Concurrent Processing**: Configurable concurrency limits
+- **Checkpointing**: Resume processing from where it left off
+- **Error Handling**: Graceful handling of network errors and invalid data
+
+### Web Scraping Features
+
+The scraper module provides:
+- **Multi-method scraping**: Firecrawl API (placeholder) + httpx fallback
+- **About page discovery**: Automatically finds and scrapes About pages
+- **Content extraction**: Extracts meaningful text from HTML
+- **Rate limiting**: Respects concurrency limits and robots.txt
+- **Error resilience**: Handles network failures gracefully
+
+### Content Cleaning Features
+
+The cleaner module provides:
+- **HTML cleaning**: Uses trafilatura for boilerplate removal
+- **Text normalization**: Cleans HTML entities and excessive punctuation
+- **Chunking**: Splits text into overlapping chunks (1000 tokens, 200 overlap)
+- **Multi-page processing**: Combines homepage and About page content
+
 ### Development Commands
 
 Run tests:
@@ -118,9 +145,13 @@ thinkbridge/
 │   └── thinkbridge/
 │       ├── __init__.py
 │       ├── example.py  # Example module
-│       └── ingest.py   # CSV ingestion CLI
+│       ├── ingest.py   # CSV ingestion CLI
+│       ├── scraper.py  # Web scraping module
+│       └── cleaner.py  # HTML cleaning module
 └── tests/             # Test files
     ├── __init__.py
     ├── test_example.py
-    └── test_ingest.py
+    ├── test_ingest.py
+    ├── test_scraper.py
+    └── test_cleaner.py
 ```

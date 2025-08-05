@@ -2,9 +2,11 @@
 Unit tests for the ingest CLI module.
 """
 
+import asyncio
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
@@ -140,20 +142,71 @@ class TestIngestCLI:
         """Test successful company processing."""
         ingest = IngestCLI(str(self.csv_path))
 
-        result = await ingest.process_company("https://test.com", "technology")
+        # Mock the scraper and cleaner
+        with (
+            patch("thinkbridge.scraper.WebScraper") as mock_scraper_class,
+            patch("thinkbridge.cleaner.ContentCleaner") as mock_cleaner_class,
+        ):
 
-        assert result["url"] == "https://test.com"
-        assert result["industry"] == "technology"
-        assert result["status"] == "success"
-        assert "timestamp" in result
+            # Mock scraper
+            mock_scraper = Mock()
+            mock_scraper.scrape_company.return_value = asyncio.Future()
+            mock_scraper.scrape_company.return_value.set_result(
+                {
+                    "url": "https://test.com",
+                    "status": "success",
+                    "method": "httpx",
+                    "homepage_content": (
+                        "<html><body><h1>Test Company</h1></body></html>"
+                    ),
+                    "homepage_text": "Test Company",
+                    "about_url": None,
+                    "about_text": "",
+                }
+            )
+            mock_scraper_class.return_value = mock_scraper
+
+            # Mock cleaner
+            mock_cleaner = Mock()
+            mock_cleaner.process_scraped_content.return_value = {
+                "url": "https://test.com",
+                "status": "success",
+                "combined_text": "Test Company content",
+                "combined_chunks": ["Test Company content"],
+                "num_chunks": 1,
+                "total_length": 20,
+            }
+            mock_cleaner_class.return_value = mock_cleaner
+
+            result = await ingest.process_company("https://test.com", "technology")
+
+            assert result["url"] == "https://test.com"
+            assert result["industry"] == "technology"
+            assert result["status"] == "success"
+            assert "timestamp" in result
+            assert result["content_length"] == 20
+            assert result["num_chunks"] == 1
 
     @pytest.mark.asyncio
     async def test_process_company_failure(self) -> None:
         """Test company processing failure."""
         ingest = IngestCLI(str(self.csv_path))
 
-        with pytest.raises(Exception, match="Simulated failure"):
-            await ingest.process_company("https://example.com", "technology")
+        # Mock the scraper to simulate failure
+        with patch("thinkbridge.scraper.WebScraper") as mock_scraper_class:
+            mock_scraper = Mock()
+            mock_scraper.scrape_company.return_value = asyncio.Future()
+            mock_scraper.scrape_company.return_value.set_result(
+                {
+                    "url": "https://example.com",
+                    "status": "failed",
+                    "error": "Simulated failure",
+                }
+            )
+            mock_scraper_class.return_value = mock_scraper
+
+            with pytest.raises(Exception, match="Scraping failed: Simulated failure"):
+                await ingest.process_company("https://example.com", "technology")
 
     @pytest.mark.asyncio
     async def test_process_companies_async(self) -> None:
@@ -168,12 +221,84 @@ class TestIngestCLI:
         ingest = IngestCLI(str(self.csv_path))
         df = ingest.validate_csv()
 
-        await ingest.process_companies_async(df, max_concurrent=2)
+        # Mock the scraper and cleaner
+        with (
+            patch("thinkbridge.scraper.WebScraper") as mock_scraper_class,
+            patch("thinkbridge.cleaner.ContentCleaner") as mock_cleaner_class,
+        ):
 
-        # Should have 2 successful and 1 failed
-        assert len(ingest.processed_companies) == 2
-        assert len(ingest.failed_companies) == 1
-        assert "https://example.com" in [f["url"] for f in ingest.failed_companies]
+            # Mock scraper with mixed success/failure
+            mock_scraper = Mock()
+
+            # Create futures for each call
+            future1: asyncio.Future = asyncio.Future()
+            future1.set_result(
+                {
+                    "url": "https://test1.com",
+                    "status": "success",
+                    "method": "httpx",
+                    "homepage_content": "<html><body><h1>Test1</h1></body></html>",
+                    "homepage_text": "Test1",
+                    "about_url": None,
+                    "about_text": "",
+                }
+            )
+
+            future2: asyncio.Future = asyncio.Future()
+            future2.set_result(
+                {
+                    "url": "https://test2.com",
+                    "status": "success",
+                    "method": "httpx",
+                    "homepage_content": "<html><body><h1>Test2</h1></body></html>",
+                    "homepage_text": "Test2",
+                    "about_url": None,
+                    "about_text": "",
+                }
+            )
+
+            future3: asyncio.Future = asyncio.Future()
+            future3.set_result(
+                {
+                    "url": "https://example.com",
+                    "status": "failed",
+                    "error": "Simulated failure",
+                }
+            )
+
+            mock_scraper.scrape_company.side_effect = [future1, future2, future3]
+            mock_scraper_class.return_value = mock_scraper
+
+            # Mock cleaner
+            mock_cleaner = Mock()
+            mock_cleaner.process_scraped_content.side_effect = [
+                # Success for test1.com
+                {
+                    "url": "https://test1.com",
+                    "status": "success",
+                    "combined_text": "Test1 content",
+                    "combined_chunks": ["Test1 content"],
+                    "num_chunks": 1,
+                    "total_length": 15,
+                },
+                # Success for test2.com
+                {
+                    "url": "https://test2.com",
+                    "status": "success",
+                    "combined_text": "Test2 content",
+                    "combined_chunks": ["Test2 content"],
+                    "num_chunks": 1,
+                    "total_length": 15,
+                },
+            ]
+            mock_cleaner_class.return_value = mock_cleaner
+
+            await ingest.process_companies_async(df, max_concurrent=2)
+
+            # Should have 2 successful and 1 failed
+            assert len(ingest.processed_companies) == 2
+            assert len(ingest.failed_companies) == 1
+            assert "https://example.com" in [f["url"] for f in ingest.failed_companies]
 
     @pytest.mark.asyncio
     async def test_process_companies_async_with_checkpoint(self) -> None:
@@ -190,11 +315,47 @@ class TestIngestCLI:
         ingest.processed_companies = ["https://test1.com"]
 
         df = ingest.validate_csv()
-        await ingest.process_companies_async(df, max_concurrent=2)
 
-        # Should only process the new company
-        assert len(ingest.processed_companies) == 2
-        assert len(ingest.failed_companies) == 0
+        # Mock the scraper and cleaner
+        with (
+            patch("thinkbridge.scraper.WebScraper") as mock_scraper_class,
+            patch("thinkbridge.cleaner.ContentCleaner") as mock_cleaner_class,
+        ):
+
+            # Mock scraper - only one call since test1.com is already processed
+            mock_scraper = Mock()
+            future: asyncio.Future = asyncio.Future()
+            future.set_result(
+                {
+                    "url": "https://test2.com",
+                    "status": "success",
+                    "method": "httpx",
+                    "homepage_content": "<html><body><h1>Test2</h1></body></html>",
+                    "homepage_text": "Test2",
+                    "about_url": None,
+                    "about_text": "",
+                }
+            )
+            mock_scraper.scrape_company.return_value = future
+            mock_scraper_class.return_value = mock_scraper
+
+            # Mock cleaner
+            mock_cleaner = Mock()
+            mock_cleaner.process_scraped_content.return_value = {
+                "url": "https://test2.com",
+                "status": "success",
+                "combined_text": "Test2 content",
+                "combined_chunks": ["Test2 content"],
+                "num_chunks": 1,
+                "total_length": 15,
+            }
+            mock_cleaner_class.return_value = mock_cleaner
+
+            await ingest.process_companies_async(df, max_concurrent=2)
+
+            # Should only process the new company
+            assert len(ingest.processed_companies) == 2
+            assert len(ingest.failed_companies) == 0
 
 
 class TestIngestCLICommand:

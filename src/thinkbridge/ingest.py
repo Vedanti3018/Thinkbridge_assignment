@@ -111,7 +111,7 @@ class IngestCLI:
         return df
 
     async def process_company(self, url: str, industry: str) -> Dict[str, Any]:
-        """Process a single company (placeholder for future implementation).
+        """Process a single company with web scraping and content cleaning.
 
         Args:
             url: Company website URL
@@ -120,19 +120,46 @@ class IngestCLI:
         Returns:
             Dict containing processing result
         """
-        # This is a placeholder - will be replaced with actual processing logic
-        await asyncio.sleep(0.1)  # Simulate processing time
+        try:
+            # Import scraper and cleaner
+            from .cleaner import ContentCleaner
+            from .scraper import WebScraper
 
-        # Simulate some failures for testing
-        if "example.com" in url:
-            raise Exception("Simulated failure for example.com")
+            # Initialize scraper and cleaner
+            scraper = WebScraper(max_concurrent=5)
+            cleaner = ContentCleaner(chunk_size=1000, chunk_overlap=200)
 
-        return {
-            "url": url,
-            "industry": industry,
-            "status": "success",
-            "timestamp": pd.Timestamp.now().isoformat(),
-        }
+            # Scrape the website
+            scraped_data = await scraper.scrape_company(url)
+
+            if scraped_data.get("status") != "success":
+                raise Exception(
+                    f"Scraping failed: {scraped_data.get('error', 'Unknown error')}"
+                )
+
+            # Clean and process the content
+            processed_data = cleaner.process_scraped_content(scraped_data)
+
+            if processed_data.get("status") != "success":
+                raise Exception(
+                    f"Content processing failed: "
+                    f"{processed_data.get('error', 'Unknown error')}"
+                )
+
+            return {
+                "url": url,
+                "industry": industry,
+                "status": "success",
+                "timestamp": pd.Timestamp.now().isoformat(),
+                "scraped_data": scraped_data,
+                "processed_data": processed_data,
+                "content_length": processed_data.get("total_length", 0),
+                "num_chunks": processed_data.get("num_chunks", 0),
+            }
+
+        except Exception as e:
+            self.logger.error(f"Failed to process {url}: {e}")
+            raise e
 
     async def process_companies_async(
         self, companies_df: pd.DataFrame, max_concurrent: int = 8
