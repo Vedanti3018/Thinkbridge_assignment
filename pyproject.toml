@@ -17,7 +17,9 @@ dependencies = [
     "beautifulsoup4 (>=4.12.0,<5.0.0)",
     "trafilatura (>=2.0.0,<3.0.0)",
     "lxml (>=5.0.0,<6.0.0)",
-    "firecrawl (>=0.0.1,<1.0.0)"
+    "firecrawl (>=0.0.1,<1.0.0)",
+    "openai (>=1.0.0,<2.0.0)",
+    "numpy (>=1.24.0,<2.0.0)"
 ]
 
 [tool.poetry]

@@ -81,61 +81,72 @@ class WebScraper:
 
             crawl_result = firecrawl_client.crawl_url(url, params=crawl_params)
 
-            if crawl_result and crawl_result.get("success"):
-                self.logger.info(f"Firecrawl crawl successful for {url}")
-
-                # Extract content from all crawled pages
-                data = crawl_result.get("data", [])
-                if not data:
-                    self.logger.warning(f"Firecrawl crawl returned no data for {url}")
+            # Check if crawl_result is a list (direct data) or dict (wrapped response)
+            if isinstance(crawl_result, list):
+                data = crawl_result
+            elif crawl_result and isinstance(crawl_result, dict):
+                if crawl_result.get("success"):
+                    data = crawl_result.get("data", [])
+                else:
+                    self.logger.warning(
+                        f"Firecrawl crawl failed for {url}: {crawl_result}"
+                    )
                     return None
-
-                # Combine content from all pages
-                combined_content = ""
-                homepage_content = ""
-                about_content = ""
-                about_url = None
-
-                for page in data:
-                    page_url = page.get("metadata", {}).get("sourceURL", "")
-                    page_content = page.get("markdown", "")
-
-                    if page_content:
-                        combined_content += (
-                            f"\n\n--- Page: {page_url} ---\n{page_content}"
-                        )
-
-                        # Check if this is the homepage (first page or matches base URL)
-                        if (
-                            not homepage_content
-                            or page_url == url
-                            or page_url == url.rstrip("/")
-                        ):
-                            homepage_content = page_content
-
-                        # Check if this looks like an About page
-                        if any(
-                            keyword in page_url.lower()
-                            for keyword in ["about", "who", "company", "mission"]
-                        ):
-                            about_content = page_content
-                            about_url = page_url
-
-                return {
-                    "url": url,
-                    "homepage_content": homepage_content or combined_content,
-                    "homepage_text": homepage_content or combined_content,
-                    "about_url": about_url,
-                    "about_text": about_content,
-                    "combined_content": combined_content.strip(),
-                    "pages_crawled": len(data),
-                    "method": "firecrawl-crawl",
-                    "status": "success",
-                    "metadata": crawl_result.get("metadata", {}),
-                }
             else:
-                self.logger.warning(f"Firecrawl crawl failed for {url}")
+                self.logger.warning(
+                    f"Firecrawl crawl returned unexpected format for {url}"
+                )
                 return None
+
+            if not data:
+                self.logger.warning(f"Firecrawl crawl returned no data for {url}")
+                return None
+
+            self.logger.info(
+                f"Firecrawl crawl successful for {url}, got {len(data)} pages"
+            )
+
+            # Combine content from all pages
+            combined_content = ""
+            homepage_content = ""
+            about_content = ""
+            about_url = None
+
+            for page in data:
+                page_url = page.get("metadata", {}).get("sourceURL", "")
+                page_content = page.get("markdown", "")
+
+                if page_content:
+                    combined_content += f"\n\n--- Page: {page_url} ---\n{page_content}"
+
+                    # Check if this is the homepage (first page or matches base URL)
+                    if (
+                        not homepage_content
+                        or page_url == url
+                        or page_url == url.rstrip("/")
+                    ):
+                        homepage_content = page_content
+
+                    # Check if this looks like an About page
+                    if any(
+                        keyword in page_url.lower()
+                        for keyword in ["about", "who", "company", "mission"]
+                    ):
+                        about_content = page_content
+                        about_url = page_url
+
+            return {
+                "url": url,
+                "homepage_content": homepage_content or combined_content,
+                "homepage_text": homepage_content or combined_content,
+                "about_url": about_url,
+                "about_text": about_content,
+                "combined_content": combined_content.strip(),
+                "pages_crawled": len(data),
+                "method": "firecrawl-crawl",
+                "status": "success",
+                "metadata": {},
+            }
 
         except Exception as e:
             self.logger.warning(f"Firecrawl crawl failed for {url}: {e}")

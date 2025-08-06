@@ -37,11 +37,19 @@ class TestIngestCLI:
 
     def test_init(self) -> None:
         """Test IngestCLI initialization."""
-        ingest = IngestCLI(str(self.csv_path), str(self.checkpoint_path))
+        # Test with vector store disabled
+        ingest = IngestCLI(
+            str(self.csv_path),
+            str(self.checkpoint_path),
+            enable_vector_store=False,
+            force_rescrape=False,
+        )
         assert ingest.csv_path == self.csv_path
         assert ingest.checkpoint_file == self.checkpoint_path
         assert ingest.processed_companies == []
         assert ingest.failed_companies == []
+        assert ingest.enable_vector_store is False
+        assert ingest.vector_store is None
 
     def test_validate_csv_success(self) -> None:
         """Test successful CSV validation."""
@@ -107,7 +115,12 @@ class TestIngestCLI:
 
     def test_checkpoint_save_and_load(self) -> None:
         """Test checkpoint save and load functionality."""
-        ingest = IngestCLI(str(self.csv_path), str(self.checkpoint_path))
+        ingest = IngestCLI(
+            str(self.csv_path),
+            str(self.checkpoint_path),
+            enable_vector_store=False,
+            force_rescrape=False,
+        )
 
         # Add some test data
         ingest.processed_companies = ["https://example.com", "https://test.com"]
@@ -129,7 +142,12 @@ class TestIngestCLI:
 
     def test_checkpoint_load_nonexistent(self) -> None:
         """Test loading non-existent checkpoint file."""
-        ingest = IngestCLI(str(self.csv_path), str(self.checkpoint_path))
+        ingest = IngestCLI(
+            str(self.csv_path),
+            str(self.checkpoint_path),
+            enable_vector_store=False,
+            force_rescrape=False,
+        )
 
         # Should not raise an exception
         ingest.load_checkpoint()
@@ -309,7 +327,12 @@ class TestIngestCLI:
         ]
         self.create_test_csv(test_data)
 
-        ingest = IngestCLI(str(self.csv_path), str(self.checkpoint_path))
+        ingest = IngestCLI(
+            str(self.csv_path),
+            str(self.checkpoint_path),
+            enable_vector_store=False,
+            force_rescrape=False,
+        )
 
         # Simulate already processed company
         ingest.processed_companies = ["https://test1.com"]
